@@ -6,7 +6,7 @@
   <title>みんなのチャットルーム</title>
   <style>
     body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; display: flex; justify-content: center; }
-    .container { width: 100%; max-width: 600px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .container { width: 100%; max-width: 600px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 100%; }
     .screen { display: none; }
     .active { display: block; }
     h2 { margin-top: 0; color: #333; }
@@ -14,9 +14,8 @@
     button { width: 100%; padding: 10px; background: #0084ff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
     button:hover { background: #0066cc; }
     .switch-btn { background: none; color: #0084ff; margin-top: 10px; font-size: 14px; text-decoration: underline; border: none; cursor: pointer; width: 100%; text-align: center; }
-    
-    #chat-box { height: 400px; border: 1px solid #ddd; border-radius: 4px; overflow-y: scroll; padding: 10px; margin-bottom: 10px; background: #f9f9f9; }
-    .message { margin-bottom: 12px; padding: 8px 12px; border-radius: 4px; background: #e4e6eb; width: fit-content; max-width: 80%; }
+    #chat-box { height: 400px; border: 1px solid #ddd; border-radius: 4px; overflow-y: scroll; padding: 10px; margin-bottom: 10px; background: #f9f9f9; display: flex; flex-direction: column; gap: 8px; }
+    .message { padding: 8px 12px; border-radius: 4px; background: #e4e6eb; width: fit-content; max-width: 80%; word-break: break-all; }
     .message.mine { background: #0084ff; color: white; margin-left: auto; }
     .meta { font-size: 11px; color: #65676b; margin-bottom: 2px; }
     .message.mine .meta { color: #e4e6eb; }
@@ -26,9 +25,9 @@
     .header-area { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
     .logout-btn { width: auto; padding: 5px 10px; background: #bcbcbc; font-size: 12px; }
   </style>
+  <script src="https://jsdelivr.net"></script>
 </head>
 <body>
-
 
 <div class="container">
   <!-- ① ログイン画面 -->
@@ -41,26 +40,23 @@
     <button class="switch-btn" onclick="switchScreen('reset-screen')" style="color: #65676b; font-size: 12px;">パスワードを忘れた場合</button>
   </div>
 
-
   <!-- ② アカウント作成画面 -->
   <div id="signup-screen" class="screen">
     <h2>アカウント作成</h2>
-    <input type="text" id="signup-username" placeholder="使いたいユーザー名（英数字のみ推奨）">
+    <input type="text" id="signup-username" placeholder="使いたいユーザー名（英数字）">
     <input type="password" id="signup-password" placeholder="パスワード（6文字以上）">
     <button id="btn-signup">登録してログイン</button>
     <button class="switch-btn" onclick="switchScreen('login-screen')">ログイン画面に戻る</button>
   </div>
 
-
-  <!-- ③ パスワード再設定画面（追加） -->
+  <!-- ③ パスワード再設定画面 -->
   <div id="reset-screen" class="screen">
     <h2>パスワードの再設定</h2>
-    <p style="font-size: 13px; color: #65676b;">登録したユーザー名ではなく、連絡を受け取れる【本物のメールアドレス】を入力してください。パスワード再設定用のリンクが届きます。</p>
+    <p style="font-size: 13px; color: #65676b;">登録したユーザー名ではなく、連絡を受け取れる【本物のメールアドレス】を入力してください。</p>
     <input type="email" id="reset-email" placeholder="本物のメールアドレス">
     <button id="btn-reset">再設定メールを送信</button>
     <button class="switch-btn" onclick="switchScreen('login-screen')">ログイン画面に戻る</button>
   </div>
-
 
   <!-- ④ チャット画面 -->
   <div id="chat-screen" class="screen">
@@ -76,171 +72,116 @@
   </div>
 </div>
 
+<script>
+  const SUPABASE_URL = "https://supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94d3JlZ3Zwc3NjZmNucG1vbm9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzg4NTQ0MDAsImV4cCI6MjA1NDQzMDQwMH0.bXJkX3Rlc3Rfa2V5X2Zvcl9jaGF0X2FwcF9zZW5hXzIwMjY";
+  const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-<script type="module">
-  import { initializeApp } from "https://gstatic.com";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://gstatic.com";
-  import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://gstatic.com";
+  const DUMMY_DOMAIN = "@fakechat.com";
+  let currentUsername = null;
 
-
-  // ⚠️ あなたのFirebase設定情報に置き換えてください
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
-
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-
-  let currentUser = null;
-
-
-  // ユーザー名をFirebase用メールアドレスに変換するダミー用のドメイン
-  const DUMMY_DOMAIN = "@chat.com";
-
-
-  // 🔄 ログイン状態の監視
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      currentUser = user;
-      // 表示名は「@chat.com」を取り除いた純粋なユーザー名にする
-      const username = user.email.replace(DUMMY_DOMAIN, "");
-      // もし再設定した本物のメアドだった場合はそのまま表示
-      document.getElementById('user-display').innerText = `${username} さん`;
+  async function checkUser() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session && session.user) {
+      currentUsername = session.user.email.replace(DUMMY_DOMAIN, "");
+      document.getElementById('user-display').innerText = `${currentUsername} さん`;
       switchScreen('chat-screen');
       loadMessages();
+      listenRealtime();
     } else {
-      currentUser = null;
       switchScreen('login-screen');
     }
-  });
+  }
+  checkUser();
 
-
-  // 👤 アカウント作成
   document.getElementById('btn-signup').addEventListener('click', async () => {
     const username = document.getElementById('signup-username').value.trim();
     const password = document.getElementById('signup-password').value;
+    if(!username || !password) return alert('入力してください');
     
-    if(!username) return alert('ユーザー名を入力してください');
+    const fakeEmail = username + DUMMY_DOMAIN;
+    const { data, error } = await supabase.auth.signUp({ email: fakeEmail, password: password });
     
-    // 裏側でメールアドレスの形式（username@chat.com）に変換
-    const firebaseEmail = username + DUMMY_DOMAIN;
-
-
-    try {
-      await createUserWithEmailAndPassword(auth, firebaseEmail, password);
-      alert('アカウントを作成しました！');
-    } catch (error) {
-      alert('エラー: ' + error.message);
+    if (error) alert('作成失敗: ' + error.message);
+    else {
+      alert('アカウント作成成功！');
+      checkUser();
     }
   });
 
-
-  // 🔑 ログイン
   document.getElementById('btn-login').addEventListener('click', async () => {
     const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
     
-    // 入力されたのがユーザー名ならダミードメインをつけ、本物のメアドならそのまま使う
-    const firebaseEmail = username.includes('@') ? username : username + DUMMY_DOMAIN;
-
-
-    try {
-      await signInWithEmailAndPassword(auth, firebaseEmail, password);
-    } catch (error) {
-      alert('ログイン失敗: ' + error.message);
-    }
+    const fakeEmail = username.includes('@') ? username : username + DUMMY_DOMAIN;
+    const { data, error } = await supabase.auth.signInWithPassword({ email: fakeEmail, password: password });
+    
+    if (error) alert('ログイン失敗: ' + error.message);
+    else checkUser();
   });
 
-
-  // ✉️ パスワード再設定メールの送信（追加機能）
   document.getElementById('btn-reset').addEventListener('click', async () => {
     const email = document.getElementById('reset-email').value.trim();
     if(!email) return alert('メールアドレスを入力してください');
-
-
-    try {
-      await sendPasswordResetEmail(auth, email);
-      alert('パスワード再設定用のメールを送信しました。メールボックスを確認してください。');
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+    if (error) alert('エラー: ' + error.message);
+    else {
+      alert('入力されたメールアドレスに再設定リンクを送信しました！');
       switchScreen('login-screen');
-    } catch (error) {
-      alert('送信エラー: ' + error.message);
     }
   });
 
-
-  // 🚪 ログアウト
-  document.getElementById('btn-logout').addEventListener('click', () => {
-    signOut(auth);
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    switchScreen('login-screen');
   });
 
-
-  // ✉️ メッセージ送信
   document.getElementById('btn-send').addEventListener('click', sendMessage);
-  document.getElementById('msg-input').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendMessage();
-  });
-
+  document.getElementById('msg-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 
   async function sendMessage() {
     const input = document.getElementById('msg-input');
     const text = input.value.trim();
-    if (!text || !currentUser) return;
+    if (!text || !currentUsername) return;
 
+    const { error } = await supabase.from('messages').insert([{ text: text, sender: currentUsername }]);
+    if (error) alert('送信失敗: ' + error.message);
+    else input.value = "";
+  }
 
-    try {
-      await addDoc(collection(db, "messages"), {
-        text: text,
-        sender: currentUser.email,
-        createdAt: serverTimestamp()
-      });
-      input.value = "";
-    } catch (error) {
-      alert("送信エラー: " + error.message);
+  async function loadMessages() {
+    const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: true });
+    if (data) {
+      const chatBox = document.getElementById('chat-box');
+      chatBox.innerHTML = "";
+      data.forEach(msg => appendMessage(msg));
+      chatBox.scrollTop = chatBox.scrollHeight;
     }
   }
 
-
-  // 🔊 メッセージのリアルタイム受信
-  function loadMessages() {
-    const q = query(collection(db, "messages"), orderBy("createdAt", "asc"));
-    
-    onSnapshot(q, (snapshot) => {
-      const chatBox = document.getElementById('chat-box');
-      chatBox.innerHTML = "";
-      
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (!data.createdAt) return;
-
-
-        const isMine = data.sender === currentUser.email;
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `message ${isMine ? 'mine' : ''}`;
-        
-        // チャット画面のタイムライン上でも、きれいなユーザー名で表示する
-        const displayName = data.sender.replace(DUMMY_DOMAIN, "");
-        msgDiv.innerHTML = `<div class="meta">${displayName}</div><div>${escapeHTML(data.text)}</div>`;
-        
-        chatBox.appendChild(msgDiv);
-      });
-      chatBox.scrollTop = chatBox.scrollHeight;
-    });
+  function listenRealtime() {
+    supabase.channel('custom-all-channel')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+        appendMessage(payload.new);
+        const chatBox = document.getElementById('chat-box');
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }).subscribe();
   }
 
+  function appendMessage(msg) {
+    const chatBox = document.getElementById('chat-box');
+    const isMine = msg.sender === currentUsername;
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `message ${isMine ? 'mine' : ''}`;
+    msgDiv.innerHTML = `<div class="meta">${escapeHTML(msg.sender)}</div><div>${escapeHTML(msg.text)}</div>`;
+    chatBox.appendChild(msgDiv);
+  }
 
   window.switchScreen = function(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
   }
-
 
   function escapeHTML(str) {
     return str.replace(/[&<>"']/g, match => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[match]));
