@@ -3,291 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Realtime Online Chat & Voice</title>
-    <!-- SkyWay SDK の読み込み -->
-    <script src="https://jsdelivr.net"></script>
+    <title>シンプル音声通話</title>
+    <script src="https://unpkg.com"></script>
     <style>
-        :root {
-            --primary: #4a90e2;
-            --bg: #f5f7fb;
-            --chat-bg: #ffffff;
-            --text: #333333;
-        }
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        .container {
-            width: 400px;
-            height: 600px;
-            background: var(--chat-bg);
-            border-radius: 16px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        /* オンライン接続バー */
-        .voice-extension-bar {
-            background: #2c3e50;
-            color: white;
-            padding: 12px 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 14px;
-        }
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background: #bdc3c7;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 6px;
-        }
-        .status-dot.active {
-            background: #2ecc71;
-            box-shadow: 0 0 8px #2ecc71;
-        }
-        .voice-btn {
-            background: var(--primary);
-            border: none;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .voice-btn.active { background: #e74c3c; }
-
-        /* チャットエリア */
-        .chat-messages {
-            flex: 1;
-            padding: 16px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        .message {
-            max-width: 75%;
-            padding: 10px 14px;
-            border-radius: 12px;
-            font-size: 15px;
-            line-height: 1.4;
-            word-break: break-all;
-        }
-        .message.sent {
-            background: var(--primary);
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 2px;
-        }
-        .message.received {
-            background: #e9ecef;
-            color: var(--text);
-            align-self: flex-start;
-            border-bottom-left-radius: 2px;
-        }
-
-        /* 入力エリア */
-        .chat-input-area {
-            padding: 16px;
-            background: #f8f9fa;
-            border-top: 1px solid #eee;
-            display: flex;
-            gap: 8px;
-        }
-        .chat-input {
-            flex: 1;
-            border: 1px solid #ddd;
-            padding: 10px 14px;
-            border-radius: 24px;
-            outline: none;
-            font-size: 14px;
-        }
-        .chat-input:disabled {
-            background: #e9ecef;
-            placeholder: "接続を待っています...";
-        }
-        .send-btn {
-            background: var(--primary);
-            border: none;
-            color: white;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f0f2f5; }
+        .container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 5px; border: none; background: #007bff; color: white; }
+        button:disabled { background: #ccc; }
+        input { padding: 10px; font-size: 16px; width: 80%; margin-bottom: 10px; text-align: center; }
+        .status { font-weight: bold; color: #555; margin: 15px 0; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- ボイスチャット・オンライン接続管理 -->
-    <div class="voice-extension-bar">
-        <div>
-            <span class="status-dot" id="statusDot"></span>
-            <span id="statusText">オフライン</span>
-        </div>
-        <button class="voice-btn" id="voiceBtn">オンラインになる</button>
+    <h2>シンプル音声通話</h2>
+    
+    <div>
+        <p>あなたのID:</p>
+        <h3 id="my-id">読み込み中...</h3>
     </div>
 
-    <!-- チャットメッセージ画面 -->
-    <div class="chat-messages" id="chatMessages">
-        <div class="message received" id="systemMsg">上のボタンを押してオンラインに接続すると、チャットの送受信や音声通話ができるようになります！</div>
+    <hr>
+
+    <div>
+        <p>相手のIDを入力して通話:</p>
+        <input type="text" id="peer-id" placeholder="相手のIDを入力"><br>
+        <button id="call-btn" disabled>発信</button>
+        <button id="hangup-btn" style="background:#dc3545;" disabled>切断</button>
     </div>
 
-    <!-- テキスト入力欄 -->
-    <div class="chat-input-area">
-        <input type="text" class="chat-input" id="chatInput" placeholder="まずオンラインに接続してください" autocomplete="off" disabled>
-        <button class="send-btn" id="sendBtn" disabled>➔</button>
-    </div>
+    <div class="status" id="status">準備中...</div>
 </div>
 
-<div id="remoteAudioContainer"></div>
+<!-- 音声再生用の隠し要素 -->
+<audio id="remote-audio" autoplay></audio>
 
 <script>
-    // ⚠️ SkyWayの一時的なテストトークン
-    const SKYWAY_TOKEN = 'YOUR_SKYWAY_TOKEN_OR_GENERIC_TEST_TOKEN'; 
+    let localStream = null;
+    let currentCall = null;
 
-    const { SkyWayContext, SkyWayRoom } = SkyWayRoomPackage;
-    
-    // UI要素の取得
-    const chatMessages = document.getElementById('chatMessages');
-    const chatInput = document.getElementById('chatInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const voiceBtn = document.getElementById('voiceBtn');
-    const statusDot = document.getElementById('statusDot');
-    const statusText = document.getElementById('statusText');
-    const audioContainer = document.getElementById('remoteAudioContainer');
+    // 1. マイクの許可を取得
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        .then(stream => {
+            localStream = stream;
+            document.getElementById('status').innerText = 'マイクが許可されました。接続中...';
+            
+            // 2. PeerJSの初期化（無料のパブリックサーバーを利用）
+            const peer = new Peer();
 
-    let context, room, me, localAudioTrack, localDataTrack;
-    let isOnline = false;
+            // 自分のIDが発行されたとき
+            peer.on('open', (id) => {
+                document.getElementById('my-id').innerText = id;
+                document.getElementById('status').innerText = '通話可能です';
+                document.getElementById('call-btn').disabled = false;
+            });
 
-    // 1. メッセージを画面に描画する共通関数
-    function appendMessage(text, type) {
-        const msgElement = document.createElement('div');
-        msgElement.className = `message ${type}`;
-        msgElement.textContent = text;
-        chatMessages.appendChild(msgElement);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
+            // 3. 着信時の処理
+            peer.on('call', (call) => {
+                if (confirm('着信があります。通話しますか？')) {
+                    call.answer(localStream); // 自分のマイク音声を返して応答
+                    setupCallEvents(call);
+                } else {
+                    call.close();
+                }
+            });
 
-    // 2. テキストチャットを送信する処理
-    async function sendMessage() {
-        const text = chatInput.value.trim();
-        if (!text || !isOnline || !localDataTrack) return;
+            // 4. 発信ボタンの処理
+            document.getElementById('call-btn').addEventListener('click', () => {
+                const peerId = document.getElementById('peer-id').value;
+                if (!peerId) return alert('相手のIDを入力してください');
 
-        // 自分の画面に表示
-        appendMessage(text, 'sent');
-        chatInput.value = '';
+                const call = peer.call(peerId, localStream);
+                setupCallEvents(call);
+            });
 
-        // 🚀 オンライン上の他のユーザーにテキストデータを送信
-        localDataTrack.write(text);
-    }
+            // 5. 切断ボタンの処理
+            document.getElementById('hangup-btn').addEventListener('click', () => {
+                if (currentCall) currentCall.close();
+            });
 
-    sendBtn.addEventListener('click', sendMessage);
-    chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        }).catch(err => {
+            alert('マイクの許可に失敗しました: ' + err.message);
+            document.getElementById('status').innerText = 'エラー: マイクが必要です';
+        });
 
-    // 3. オンライン接続 & ボイスチャット開始処理
-    voiceBtn.addEventListener('click', async () => {
-        if (!isOnline) {
-            try {
-                statusText.textContent = '接続中...';
-                
-                // マイク音声の取得
-                const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                localAudioTrack = new SkyWayRoomPackage.WebRtcAudioTrack(mediaStream.getAudioTracks());
-                
-                // 🚀 テキスト受信用データトラックの作成
-                localDataTrack = new SkyWayRoomPackage.LocalDataTrack();
+    // 通話イベントの共通処理
+    function setupCallEvents(call) {
+        currentCall = call;
+        document.getElementById('status').innerText = '通話中...';
+        document.getElementById('call-btn').disabled = true;
+        document.getElementById('hangup-btn').disabled = false;
 
-                // SkyWayサーバー接続設定
-                context = await SkyWayContext.Create(SKYWAY_TOKEN);
-                room = await SkyWayRoom.FindOrCreate(context, {
-                    type: 'p2p',
-                    name: 'main-online-room'
-                });
+        // 相手の音声ストリームを受信したとき
+        call.on('stream', (remoteStream) => {
+            const audio = document.getElementById('remote-audio');
+            audio.srcObject = remoteStream;
+        });
 
-                // ルームへの参加
-                me = await room.join();
-                
-                // 音声とテキストデータの両方を全体に公開（Publish）
-                await me.publish(localAudioTrack);
-                await me.publish(localDataTrack);
-
-                // UIの有効化
-                statusDot.className = 'status-dot active';
-                statusText.textContent = 'オンライン（通話中）';
-                voiceBtn.textContent = 'ログアウト';
-                voiceBtn.className = 'voice-btn active';
-                chatInput.disabled = false;
-                chatInput.placeholder = "メッセージを入力...";
-                sendBtn.disabled = false;
-                document.getElementById('systemMsg').textContent = "オンラインに接続しました！同じ部屋の人と会話できます。";
-                isOnline = true;
-
-                // 4. 他の参加者のデータ（音声・テキスト）を受信する設定
-                const subscribeAndHandle = async (publication) => {
-                    if (publication.publisher.id === me.id) return;
-
-                    const { stream } = await me.subscribe(publication.id);
-                    
-                    // 🎤 音声トラックを受信した場合
-                    if (publication.contentType === 'audio') {
-                        const remoteAudio = document.createElement('audio');
-                        remoteAudio.srcObject = new MediaStream([stream.track]);
-                        remoteAudio.autoplay = true;
-                        audioContainer.appendChild(remoteAudio);
-                    } 
-                    // 💬 テキストデータトラックを受信した場合
-                    else if (publication.contentType === 'data') {
-                        stream.onData.add((text) => {
-                            appendMessage(text, 'received'); // 相手からのメッセージを画面に表示
-                        });
-                    }
-                };
-
-                // 既存の接続者と、これ以降入ってきた接続者の両方を監視
-                room.publications.forEach(subscribeAndHandle);
-                room.onStreamPublished.add((e) => subscribeAndHandle(e.publication));
-
-            } catch (err) {
-                console.error(err);
-                alert('オンライン接続に失敗しました。マイクの許可などを確認してください。');
-                resetUI();
-            }
-        } else {
-            // 切断処理
-            if (localAudioTrack) localAudioTrack.release();
-            if (localDataTrack) localDataTrack.close();
-            if (room) await room.leave();
-            resetUI();
-        }
-    });
-
-    function resetUI() {
-        statusDot.className = 'status-dot';
-        statusText.textContent = 'オフライン';
-        voiceBtn.textContent = 'オンラインになる';
-        voiceBtn.className = 'voice-btn';
-        chatInput.disabled = true;
-        chatInput.placeholder = "まずオンラインに接続してください";
-        sendBtn.disabled = true;
-        audioContainer.innerHTML = '';
-        isOnline = false;
+        // 通話が終了したとき
+        call.on('close', () => {
+            document.getElementById('status').innerText = '通話が終了しました';
+            document.getElementById('call-btn').disabled = false;
+            document.getElementById('hangup-btn').disabled = true;
+            currentCall = null;
+        });
     }
 </script>
-
 </body>
 </html>
