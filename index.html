@@ -3,55 +3,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>リアルタイム風オンラインチャット</title>
+    <title>リアルタイム風オンラインチャット（管理者機能付き）</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; }
-        body { background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        body { background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; position: relative; }
         .chat-container { width: 100%; max-width: 450px; height: 85vh; background: #fff; box-shadow: 0 12px 28px rgba(0,0,0,0.12); display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; }
-        .chat-header { background: #075e54; color: white; padding: 15px; text-align: center; font-size: 1.1rem; font-weight: bold; }
+        .chat-header { background: #075e54; color: white; padding: 15px; text-align: center; font-size: 1.1rem; font-weight: bold; position: relative; }
+        .admin-badge { background: #d93025; color: white; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; margin-left: 5px; vertical-align: middle; }
         .message-area { flex: 1; padding: 15px; overflow-y: auto; background: #efeae2; display: flex; flex-direction: column; gap: 10px; }
+        
+        /* メッセージスタイル */
         .message { max-width: 75%; padding: 10px 14px; border-radius: 8px; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; position: relative; }
         .msg-left { background: #fff; align-self: flex-start; border-top-left-radius: 0; }
         .msg-right { background: #d9fdd3; align-self: flex-end; border-top-right-radius: 0; }
-        .meta-info { font-size: 0.7rem; color: #667781; margin-top: 4px; display: block; text-align: right; }
+        .msg-system { background: #ffe0b2; color: #5d4037; align-self: center; text-align: center; max-width: 90%; font-size: 0.85rem; border-radius: 4px; border: 1px solid #ffe0b2; }
+        .meta-info { font-size: 0.7rem; color: #667781; margin-top: 4px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        
+        /* 管理用アクションボタン */
+        .admin-actions { display: none; margin-top: 5px; padding-top: 5px; border-top: 1px dashed rgba(0,0,0,0.1); text-align: right; }
+        .is-admin-view .msg-left .admin-actions { display: block; } /* 管理者から見た相手のメッセージにのみ表示 */
+        .admin-btn { background: #e1f5fe; color: #0288d1; border: 1px solid #b3e5fc; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; margin-left: 3px; font-weight: bold; }
+        .admin-btn.danger { background: #ffebee; color: #c62828; border-color: #ffcdd2; }
+        .admin-btn:hover { opacity: 0.8; }
+
+        /* 入力エリア */
         .input-area { display: flex; padding: 10px; background: #f0f2f5; border-top: 1px solid #e1e1e1; gap: 8px; }
         input[type="text"] { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 24px; outline: none; font-size: 1rem; }
         input[type="text"]:focus { border-color: #075e54; }
-        button { background: #075e54; color: white; border: none; padding: 0 20px; border-radius: 24px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-        button:hover { background: #128c7e; }
-        .user-toggle { font-size: 0.8rem; background: #e1e1e1; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; align-self: center; margin-bottom: 5px; }
+        button.send-btn { background: #075e54; color: white; border: none; padding: 0 20px; border-radius: 24px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        button.send-btn:hover { background: #128c7e; }
+        
+        /* コントロールパネル */
+        .control-panel { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.95); padding: 10px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 5px; z-index: 10; font-size: 0.8rem; border: 1px solid #ccc; }
+        .panel-title { font-weight: bold; border-bottom: 1px solid #ddd; padding-bottom: 3px; margin-bottom: 3px; }
+        .toggle-btn { padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-user { background: #e1e1e1; color: #333; }
+        .btn-admin { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+        .btn-admin.active { background: #c62828; color: white; }
+        
+        /* BAN画面のオーバーレイ */
+        .overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); color: white; z-index: 100; justify-content: center; align-items: center; flex-direction: column; padding: 20px; text-align: center; border-radius: 12px; }
+        .overlay h2 { color: #ff5252; margin-bottom: 10px; }
+        .overlay p { font-size: 0.95rem; margin-bottom: 20px; color: #ccc; }
+        .overlay button { background: #fff; color: #333; border: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div class="chat-container">
-    <div class="chat-header">🌐 オンラインチャットルーム</div>
-    
-    <!-- 擬似的に送信者を切り替えるボタン（開発・テスト用） -->
-    <button class="user-toggle" id="userToggle" onclick="toggleUser()">現在の送信者: あなた (右側)</button>
+<!-- テスト用のコントロールパネル -->
+<div class="control-panel">
+    <div class="panel-title">🛠️ デバッグパネル</div>
+    <button class="toggle-btn btn-user" id="userToggle" onclick="toggleUser()">送信者: あなた(右)</button>
+    <button class="toggle-btn btn-admin" id="adminToggle" onclick="toggleAdminRole()">管理者権限: OFF</button>
+    <div style="margin-top:5px; border-top:1px solid #ddd; padding-top:5px;">
+        <button class="admin-btn danger" onclick="clearAllBans()">全BAN解除 (リセット)</button>
+    </div>
+</div>
+
+<div class="chat-container id-container" id="chatContainer">
+    <div class="chat-header">
+        🌐 オンラインチャットルーム
+        <span class="admin-badge" id="headerAdminBadge" style="display:none;">管理者</span>
+    </div>
     
     <div class="message-area" id="messageArea">
-        <div class="message msg-left">
-            チャットへようこそ！下のフォームからメッセージを送信してみましょう。
-            <span class="meta-info">システム ・ たった今</span>
+        <div class="message msg-system">
+            チャットへようこそ！2つのタブで開くとリアルタイムに通信できます。
         </div>
     </div>
     
     <div class="input-area">
         <input type="text" id="messageInput" placeholder="メッセージを入力..." onkeypress="handleKeyPress(event)">
-        <button onclick="sendMessage()">送信</button>
+        <button class="send-btn" onclick="sendMessage()">送信</button>
     </div>
 </div>
 
-<script>
-    // ブラウザのLocalStorageを使って簡易的に別タブ同士の通信を再現
-    let isCurrentUser = true;
+<!-- 処罰時の画面ロック用オーバーレイ -->
+<div class="overlay" id="banOverlay">
+    <h2 id="overlayTitle">アクセスが禁止されました</h2>
+    <p id="overlayMessage">この部屋から退出させられました。</p>
+    <button id="overlayActionBtn" onclick="window.location.reload()">再読み込み</button>
+</div>
 
-    // 送信者を切り替える関数（1つの画面でテストするため）
+<script>
+    // 擬似的なクライアント識別情報（タブごとにランダム生成）
+    // 本来はIPアドレスですが、単一HTMLのためランダムな値でIPを擬似再現します
+    if (!sessionStorage.getItem('my_pseudo_ip')) {
+        sessionStorage.setItem('my_pseudo_ip', '192.168.1.' + Math.floor(Math.random() * 254 + 1));
+        sessionStorage.setItem('my_token', 'user_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
+    }
+    
+    const MY_IP = sessionStorage.getItem('my_pseudo_ip');
+    const MY_TOKEN = sessionStorage.getItem('my_token');
+
+    let isCurrentUser = true; // テスト用：右側（自分）か左側（相手）か
+    let isAdmin = false;       // 自分が管理者権限を持っているか
+
+    // 起動時にBAN状態のチェックを行う
+    checkBanStatus();
+
+    // 管理者ロールの切り替え
+    function toggleAdminRole() {
+        isAdmin = !isAdmin;
+        const btn = document.getElementById('adminToggle');
+        const badge = document.getElementById('headerAdminBadge');
+        const container = document.getElementById('chatContainer');
+        
+        if (isAdmin) {
+            btn.innerText = "管理者権限: ON";
+            btn.classList.add('active');
+            badge.style.display = 'inline-block';
+            container.classList.add('is-admin-view'); // CSSで管理ボタンを表示させる
+        } else {
+            btn.innerText = "管理者権限: OFF";
+            btn.classList.remove('active');
+            badge.style.display = 'none';
+            container.classList.remove('is-admin-view');
+        }
+    }
+
+    // 送信者の切り替え（開発テスト用）
     function toggleUser() {
         isCurrentUser = !isCurrentUser;
         const btn = document.getElementById('userToggle');
-        btn.innerText = isCurrentUser ? "現在の送信者: あなた (右側)" : "現在の送信者: 相手 (左側)";
+        btn.innerText = isCurrentUser ? "送信者: あなた(右)" : "送信者: 相手(左)";
     }
 
     // メッセージ送信処理
@@ -60,57 +135,68 @@
         const text = input.value.trim();
         if (text === '') return;
 
+        // 送信する前に自分がBANされていないか最終確認
+        if (checkBanStatus()) return;
+
         const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         
         const messageData = {
             text: text,
             sender: isCurrentUser ? 'right' : 'left',
             time: timestamp,
-            id: Date.now()
+            id: 'msg_' + Date.now(),
+            userToken: isCurrentUser ? MY_TOKEN : 'opponent_token_placeholder',
+            userIP: isCurrentUser ? MY_IP : '192.168.1.99', // 相手側フェイクIP
+            isAdminMessage: isAdmin && isCurrentUser // 管理者として送信したか
         };
 
-        // 画面に描画
+        // 自分の画面に表示
         appendMessage(messageData);
 
-        // 別タブにもリアルタイム反映させるためにストレージに保存
-        localStorage.setItem('chat_new_message', JSON.stringify(messageData));
-
+        // 別タブへのデータ共有
+        localStorage.setItem('chat_action_signal', JSON.stringify({ type: 'msg', data: messageData }));
         input.value = '';
     }
 
-    // 画面にメッセージを追加する関数
+    // メッセージを画面に描画
     function appendMessage(data) {
         const messageArea = document.getElementById('messageArea');
         const msgDiv = document.createElement('div');
         
-        msgDiv.className = `message ${data.sender === 'right' ? 'msg-right' : 'msg-left'}`;
-        msgDiv.innerHTML = `${escapeHTML(data.text)}<span class="meta-info">${data.time}</span>`;
-        
-        messageArea.appendChild(msgDiv);
-        messageArea.scrollTop = messageArea.scrollHeight; // 常に最新メッセージへスクロール
-    }
+        // 擬似マルチユーザーのため、トークンが一致すれば右側、違えば左側として表示
+        let side = 'msg-left';
+        if (data.sender === 'right' && data.userToken === MY_TOKEN) side = 'msg-right';
+        if (data.sender === 'left' && data.userToken === MY_TOKEN) side = 'msg-right';
+        if (data.userToken !== MY_TOKEN) side = 'msg-left';
 
-    // エンターキーでも送信できるようにする
-    function handleKeyPress(event) {
-        if (event.key === 'Enter') {
-            sendMessage();
+        // システムメッセージの場合
+        if (data.isSystem) {
+            msgDiv.className = 'message msg-system';
+            msgDiv.innerText = data.text;
+            messageArea.appendChild(msgDiv);
+            messageArea.scrollTop = messageArea.scrollHeight;
+            return;
         }
-    }
 
-    // XSS対策の簡易エスケープ
-    function escapeHTML(str) {
-        return str.replace(/[&<>"']/g, match => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-        }[match]));
-    }
-
-    // 別のタブで開いたとき、メッセージを同期させるイベントリスナー
-    window.addEventListener('storage', (event) => {
-        if (event.key === 'chat_new_message' && event.newValue) {
-            const data = JSON.parse(event.newValue);
-            // 別のタブから来たメッセージは、自分とは逆の立場として表示
-            data.sender = (data.sender === 'right') ? 'left' : 'right';
-            appendMessage(data);
+        msgDiv.className = `message ${side}`;
+        
+        // 管理者発言には名前の横に(管理者)と表示
+        const nameTag = data.isAdminMessage ? '<b style="color:#c62828;">[管理者]</b> ' : '';
+        
+        msgDiv.innerHTML = `
+            <div>${nameTag}${escapeHTML(data.text)}</div>
+            <span class="meta-info">
+                <span>IP: ${data.userIP}</span>
+                <span>${data.time}</span>
+            </span>
+            <!-- 管理者用のアクションボタン。他人のメッセージにのみ有効 -->
+            <div class="admin-actions">
+                <button class="admin-btn" onclick="executeKick('${data.userToken}')">Kick</button>
+                <button class="admin-btn danger" onclick="executeBan('account', '${data.userToken}')">BAN</button>
+                <button class="admin-btn danger" onclick="executeBan('ip', '${data.userIP}')">IP BAN</button>
+            </div>
+        `;
+        
         }
     });
 </script>
