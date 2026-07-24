@@ -331,3 +331,16 @@
             users.unshift({ username: name, ip: "127.0.0.1", banned: false, ipBanned: false });
             
             document.getElementById('registerModal').style.display = 'none';
+
+
+          function verifyAdmin() {
+            const pass = document.getElementById('adminPassword').value;
+            if(pass === "003kok25") {
+                isAdmin = true;
+                document.getElementById('adminBadge').style.display = 'block';
+                alert('管理者モードになりました。ユーザーリストから各権限を操作できます。');
+                closeModal('adminModal');
+            } else {
+                alert('パスワードが違います。');
+            }
+        }
