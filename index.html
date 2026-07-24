@@ -3,135 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebRTC ボイチャ＆テキストチャット</title>
+    <title>リアルタイム AI風 女声ボイスチェンジャー</title>
     <style>
-        body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 10px; }
-        #chat-box { height: 200px; border: 1px solid #ccc; overflow-y: scroll; padding: 10px; margin-bottom: 10px; background: #f9f9f9; }
-        .controls { margin-bottom: 15px; background: #eee; padding: 10px; border-radius: 5px; }
-        textarea { width: 100%; height: 60px; }
-        button { padding: 8px 15px; margin: 5px 2px; cursor: pointer; }
-        .status { font-weight: bold; color: #0066cc; }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #ffe5ec, #ffc2d1);
+            color: #4a4a4a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        h1 {
+            color: #ff5c8a;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #ff7096;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 112, 150, 0.4);
+            width: 100%;
+            margin-bottom: 25px;
+        }
+        button:hover {
+            background-color: #ff5c8a;
+            transform: translateY(-2px);
+        }
+        button.active {
+            background-color: #47c17e;
+            box-shadow: 0 4px 15px rgba(71, 193, 126, 0.4);
+        }
+        .control-group {
+            margin: 20px 0;
+            text-align: left;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #666;
+            font-size: 14px;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: #ff7096;
+        }
+        .value-display {
+            float: right;
+            font-weight: normal;
+            color: #ff7096;
+        }
+        .tips {
+            font-size: 12px;
+            color: #888;
+            margin-top: 20px;
+            line-height: 1.5;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
     </style>
 </head>
 <body>
 
-    <h2>🗣️ ボイチャ＆テキストチャット</h2>
-    
-    <div class="controls">
-        <p>状態: <span id="status" class="status">シグナリングサーバー接続待ち...</span></p>
-        <button id="start-voice">🎤 マイクを許可してボイチャ準備</button>
-        <button id="call-btn" disabled>📞 通話接続 (発信)</button>
+<div class="container">
+    <h1>リアルタイム女声ボイチェン</h1>
+    <button id="startBtn">ボイチェンを開始する</button>
+
+    <div class="control-group">
+        <label>ピッチ (音の高さ): <span id="pitchVal" class="value-display">1.50</span></label>
+        <input type="range" id="pitchSlider" min="1.0" max="2.0" step="0.05" value="1.50">
     </div>
 
-    <div id="chat-box"></div>
-    <textarea id="msg-input" placeholder="メッセージを入力..." disabled></textarea>
-    <button id="send-btn" disabled>送信</button>
+    <div class="control-group">
+        <label>フォルマント (女声補正フィルター): <span id="formantVal" class="value-display">3000Hz</span></label>
+        <input type="range" id="formantSlider" min="2000" max="5000" step="100" value="3000">
+    </div>
 
-    <!-- 音声再生用の隠し要素 -->
-    <audio id="remote-audio" autoplay></audio>
+    <div class="tips">
+        💡 <strong>綺麗に変換するコツ:</strong><br>
+        ・必ず<strong>イヤホンかヘッドホン</strong>をつけてください（ハウリングします）。<br>
+        ・ピッチは「1.3〜1.6」、フォルマントは「3000Hz辺り」がおすすめです。<br>
+        ・少し高めの裏声を意識して喋ると自然な女声になります。
+    </div>
+</div>
 
-    <!-- 無料で使えるパブリックなシグナリングサーバー（テスト用） -->
-    <script src="https://unpkg.com"></script>
-    <script>
-        // 本来は自分でサーバーを立てますが、テスト用に無料のPeerJS公開サーバーを利用します
-        const peer = new Peer();
-        let localStream = null;
-        let dataConnection = null;
+<script>
+    let audioCtx = null;
+    let microphone = null;
+    let processor = null;
+    let biquadFilter = null;
+    let isPlaying = false;
 
-        const statusText = document.getElementById('status');
-        const startVoiceBtn = document.getElementById('start-voice');
-        const callBtn = document.getElementById('call-btn');
-        const chatBox = document.getElementById('chat-box');
-        const msgInput = document.getElementById('msg-input');
-        const sendBtn = document.getElementById('send-btn');
-        const remoteAudio = document.getElementById('remote-audio');
+    const startBtn = document.getElementById('startBtn');
+    const pitchSlider = document.getElementById('pitchSlider');
+    const formantSlider = document.getElementById('formantSlider');
+    const pitchVal = document.getElementById('pitchVal');
+    const formantVal = document.getElementById('formantVal');
 
-        // 1. サーバー接続完了時、自分のIDを表示
-        peer.on('open', (id) => {
-            statusText.innerText = `あなたのID: ${id} (このIDを相手に伝えてください)`;
-            window.myId = id;
-        });
+    // スライダー変更のリスナー
+    pitchSlider.addEventListener('input', (e) => pitchVal.textContent = parseFloat(e.target.value).toFixed(2));
+    formantSlider.addEventListener('input', (e) => {
+        formantVal.textContent = e.target.value + 'Hz';
+        if (biquadFilter) biquadFilter.frequency.setValueAtTime(e.target.value, audioCtx.currentTime);
+    });
 
-        // 2. マイクの準備
-        startVoiceBtn.addEventListener('click', async () => {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                statusText.innerText = "マイク準備完了！相手のIDを入力して発信するか、接続を待ってください。";
-                startVoiceBtn.disabled = true;
-                callBtn.disabled = false;
-            } catch (err) {
-                alert("マイクの許可に失敗しました: " + err);
-            }
-        });
-
-        // 3. 自分から相手に接続する場合（発信）
-        callBtn.addEventListener('click', () => {
-            const targetId = prompt("接続したい相手のIDを入力してください:");
-            if (!targetId) return;
-
-            // テキスト用のデータ接続
-            dataConnection = peer.connect(targetId);
-            setupDataConnection(dataConnection);
-
-            // 音声用の通話接続
-            if (localStream) {
-                const call = peer.call(targetId, localStream);
-                setupCallConnection(call);
-            }
-        });
-
-        // 4. 相手からの接続を受け付ける場合（着信）
-        peer.on('connection', (conn) => {
-            dataConnection = conn;
-            setupDataConnection(dataConnection);
-        });
-
-        peer.on('call', (call) => {
-            if (localStream) {
-                call.answer(localStream); // 自分のマイク音声を返して通話開始
-                setupCallConnection(call);
-            } else {
-                alert("相手から通話が来ましたが、こちらのマイクが準備できていません。");
-            }
-        });
-
-        // データ通信（チャット）の設定
-        function setupDataConnection(conn) {
-            conn.on('open', () => {
-                statusText.innerText = "チャット接続完了！";
-                msgInput.disabled = false;
-                sendBtn.disabled = false;
-            });
-
-            conn.on('data', (data) => {
-                appendMessage("相手", data);
-            });
+    startBtn.addEventListener('click', async () => {
+        if (isPlaying) {
+            // 停止処理
+            if (audioCtx) audioCtx.close();
+            startBtn.textContent = 'ボイチェンを開始する';
+            startBtn.classList.remove('active');
+            isPlaying = false;
+            return;
         }
 
-        // 音通信（ボイチャ）の設定
-        function setupCallConnection(call) {
-            call.on('stream', (remoteStream) => {
-                remoteAudio.srcObject = remoteStream; // 相手の声を再生
-                statusText.innerText = "ボイチャ通話中！";
-            });
-        }
-
-        // メッセージ送信処理
-        sendBtn.addEventListener('click', () => {
-            const msg = msgInput.value;
-            if (!msg || !dataConnection) return;
+        try {
+            // マイクの許可を取得
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
             
-            dataConnection.send(msg);
-            appendMessage("あなた", msg);
-            msgInput.value = "";
-        });
+            // AudioContextの初期化
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            microphone = audioCtx.createMediaStreamSource(stream);
+            
+            // リアルタイム音声処理ノード (バッファサイズ: 1024で遅延を最小化)
+            processor = audioCtx.createScriptProcessor(1024, 1, 1);
+            
+            // フォルマント（特定の周波数強調）をシミュレートするフィルター
+            biquadFilter = audioCtx.createBiquadFilter();
+            biquadFilter.type = 'peaking';
+            biquadFilter.Q.setValueAtTime(4.0, audioCtx.currentTime); // 強調の鋭さ
+            biquadFilter.gain.setValueAtTime(8, audioCtx.currentTime); // 強調量
+            biquadFilter.frequency.setValueAtTime(formantSlider.value, audioCtx.currentTime);
 
-        function appendMessage(sender, text) {
-            const div = document.createElement('div');
-            div.innerText = `${sender}: ${text}`;
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
+            // ピッチ変換の数理ロジック (簡易フェーズボコーダ/線形補間)
+            processor.onaudioprocess = (e) => {
+                const inputBuffer = e.inputBuffer;
+                const outputBuffer = e.outputBuffer;
+                const inputData = inputBuffer.getChannelData(0);
+                const outputData = outputBuffer.getChannelData(0);
+                
+                const pitch = parseFloat(pitchSlider.value);
+                const length = inputData.length;
+
+                // 再サンプリングによるピッチ変更
+                for (let i = 0; i < length; i++) {
+                    let sourceIndex = i * pitch;
+                    if (sourceIndex < length - 1) {
+                        let index = Math.floor(sourceIndex);
+                        let frac = sourceIndex - index;
+                        // 線形補間
+                        outputData[i] = inputData[index] * (1 - frac) + inputData[index + 1] * frac;
+                    } else {
+                        outputData[i] = 0;
+                    }
+                }
+            };
+
+            // オーディオグラフの接続: マイク -> ピッチ変換 -> フォルマントフィルター -> スピーカー
+            microphone.connect(processor);
+            processor.connect(biquadFilter);
+            biquadFilter.connect(audioCtx.destination);
+
+            startBtn.textContent = 'ボイチェン作動中 (クリックで停止)';
+            startBtn.classList.add('active');
+            isPlaying = true;
+
+        } catch (err) {
+            alert('マイクのアクセスが拒否されたか、マイクが見つかりません: ' + err);
         }
-    </script>
+    });
+</script>
+
 </body>
 </html>
