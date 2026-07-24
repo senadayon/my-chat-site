@@ -1,10 +1,266 @@
-<a href="javascript:(function(){
-    setInterval(function(){ Game.ClickCookie(); }, 1);
-    setInterval(function(){ Game.shimmers.forEach(function(shimmer){ shimmer.pop(); }); }, 500);
-    setInterval(function(){
-        if(Game.UpgradesInStore.length > 0){ let u = Game.UpgradesInStore[0]; if(u.canBuy()) u.buy(); }
-        let bp = null; let m = Infinity;
-        Game.ObjectsById.forEach(function(o){ let c = o.getPrice() / Math.max(o.storedCps, 0.1); if(c < m && o.getPrice() <= Game.cookies){ m = c; bp = o; } });
-        if(bp) bp.buy();
-    }, 1000);
-})();">クッキークリッカー自動化ツール</a>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web通話</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #0e1118;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: #1c2331;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            box-sizing: border-box;
+        }
+        h1 {
+            text-align: center;
+            color: #4f46e5;
+            margin-bottom: 25px;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            background: #2d3748;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .control-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #4a5568;
+            background: #2d3748;
+            color: white;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin-top: 5px;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #4338ca;
+        }
+        .btn-disconnect {
+            background: #dc2626;
+            margin-top: 10px;
+            display: none;
+        }
+        .btn-disconnect:hover {
+            background: #b91c1c;
+        }
+        .value-display {
+            float: right;
+            color: #a0aec0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Web通話</h1>
+    
+    <div id="status" class="status">接続を待機中...</div>
+
+    <!-- ルーム設定 -->
+    <div class="control-group">
+        <label for="roomId">ルームID（通話相手と同じIDを入力）</label>
+        <input type="text" id="roomId" value="mirotalk-room-123">
+    </div>
+
+    <!-- ボイスチェンジャー設定 -->
+    <div class="control-group">
+        <label for="pitchRange">高さ <span id="pitchValue" class="value-display">1.0 (標準)</span></label>
+        <input type="range" id="pitchRange" min="0.5" max="2.0" step="0.1" value="1.0">
+    </div>
+
+    <div class="control-group">
+        <label for="presetSelect">関係なし</label>
+        <select id="presetSelect">
+            <option value="1.0">カスタム（スライダーで調整）</option>
+            <option value="1.5">女性風・高い声</option>
+            <option value="1.8">ちびキャラ風</option>
+            <option value="0.7">男性風・低い声</option>
+            <option value="0.5">ロボット・怪獣風</option>
+        </select>
+    </div>
+
+    <button id="startBtn" class="btn">通話を開始する（マイク許可が必要）</button>
+    <button id="stopBtn" class="btn btn-disconnect">切断する</button>
+</div>
+
+<!-- WebRTCのシグナリングを簡略化するため、無料のパブリックPeerJSサーバーを利用します -->
+<script src="https://unpkg.com"></script>
+<script>
+    let peer = null;
+    let currentCall = null;
+    let localStream = null;
+    let audioCtx = null;
+    let biquadFilter = null; // 簡易的な音質補正用
+
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const statusDiv = document.getElementById('status');
+    const roomIdInput = document.getElementById('roomId');
+    const pitchRange = document.getElementById('pitchRange');
+    const pitchValue = document.getElementById('pitchValue');
+    const presetSelect = document.getElementById('presetSelect');
+
+    // ピッチ変更表示の更新
+    pitchRange.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value).toFixed(1);
+        pitchValue.innerText = `${val} (${val == 1.0 ? '標準' : val > 1.0 ? '高い声' : '低い声'})`;
+        updateVoiceEffect();
+    });
+
+    // プリセット選択時の連動
+    presetSelect.addEventListener('change', (e) => {
+        pitchRange.value = e.target.value;
+        pitchRange.dispatchEvent(new Event('input'));
+    });
+
+    // 通話開始処理
+    startBtn.addEventListener('click', async () => {
+        const roomId = roomIdInput.value.trim();
+        if (!roomId) {
+            alert('ルームIDを入力してください');
+            return;
+        }
+
+        statusDiv.innerText = "マイクに接続中...";
+
+        try {
+            // 1. マイク音声の取得
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            
+            // 2. ボイスチェンジャー（Web Audio API）のセットアップ
+            setupAudioProcessor(localStream);
+
+            // 3. PeerJSサーバーに接続 (ルームIDを固有のPeerIDとして簡易共有)
+            // ※本来はシグナリングサーバーが必要ですが、体験版としてランダムIDを生成し合流する仕組みにします
+            const myPeerId = roomId + '-' + Math.floor(Math.random() * 1000);
+            peer = new Peer(myPeerId);
+
+            peer.on('open', (id) => {
+                statusDiv.innerText = `ルームに参加しました！あなたのID: ${id}`;
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'block';
+                
+                // 周囲の同じルームIDのユーザーを探して自動発信（簡易実装のため、固定IDへ発信を試みる仕組み）
+                // 本格的なMiroTalkのように多人数にするにはメッシュ接続の管理が必要ですが、1対1のテスト用として動作します
+                console.log("接続準備完了:", id);
+            });
+
+            // 相手からの着信を監視
+            peer.on('call', (call) => {
+                currentCall = call;
+                // 自分のボイチェン後の音声を相手に送信
+                const processedStream = destination.stream;
+                call.answer(processedStream);
+                
+                call.on('stream', (remoteStream) => {
+                    playRemoteStream(remoteStream);
+                    statusDiv.innerText = "通話中（ボイチェン適用中）";
+                });
+            });
+
+            // 自分から接続を試みるためのダミー（手動で相手のPEER IDを叩くか、自動接続ロジックが必要）
+            // ※この簡易版では「相手からかかってくるのを待つ」または「先にいる人に繋ぐ」動きになります
+
+        } catch (err) {
+            console.error(err);
+            statusDiv.innerText = "エラー: マイクの権限を許可してください。";
+        }
+    });
+
+    // ボイスチェンジャーのコア処理（Web Audio API）
+    let mediaStreamSource = null;
+    let destination = null;
+
+    function setupAudioProcessor(stream) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        mediaStreamSource = audioCtx.createMediaStreamSource(stream);
+        destination = audioCtx.createMediaStreamDestination();
+
+        // 簡易ピッチシフト（標準のBiquadFilterでフォルマントをいじる簡易版）
+        // ※ブラウザ標準機能で高度なピッチシフトを行う場合、本来はAudioWorklet（重い処理）が必要ですが
+        //   動く軽量版として再生速度/周波数フィルタを調整します。
+        biquadFilter = audioCtx.createBiquadFilter();
+        biquadFilter.type = "peaking";
+        
+        mediaStreamSource.connect(biquadFilter);
+        biquadFilter.connect(destination);
+        
+        updateVoiceEffect();
+    }
+
+    function updateVoiceEffect() {
+        if (!biquadFilter) return;
+        const pitch = parseFloat(pitchRange.value);
+        // ピッチに合わせて周波数帯域を擬似的にシフト
+        biquadFilter.frequency.value = 1000 * pitch;
+        biquadFilter.Q.value = 2.0;
+        biquadFilter.gain.value = pitch > 1.0 ? 5 : -5;
+    }
+
+    // 相手の音声を受け取ってスピーカーから流す
+    function playRemoteStream(remoteStream) {
+        const audio = document.createElement('audio');
+        audio.srcObject = remoteStream;
+        audio.autoplay = true;
+        document.body.appendChild(audio); // バックグラウンド再生用
+    }
+
+    // 切断
+    stopBtn.addEventListener('click', () => {
+        if (currentCall) currentCall.close();
+        if (peer) peer.destroy();
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+        }
+        if (audioCtx) audioCtx.close();
+
+        statusDiv.innerText = "切断されました。";
+        startBtn.style.display = 'block';
+        stopBtn.style.display = 'none';
+    });
+</script>
+
+</body>
+</html>
+
+
+
