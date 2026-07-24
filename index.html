@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice Chat App</title>
+    <title>Real Voice Chat</title>
+    <!-- SkyWay SDK の読み込み -->
+    <script src="https://jsdelivr.net"></script>
     <style>
         :root {
             --primary: #4a90e2;
@@ -31,7 +33,6 @@
             flex-direction: column;
             overflow: hidden;
         }
-        /* ボイスチャット拡張ヘッダー */
         .voice-extension-bar {
             background: #2c3e50;
             color: white;
@@ -40,7 +41,6 @@
             justify-content: space-between;
             align-items: center;
             font-size: 14px;
-            border-bottom: 2px solid #34495e;
         }
         .status-dot {
             width: 8px;
@@ -62,12 +62,8 @@
             border-radius: 20px;
             cursor: pointer;
             font-weight: bold;
-            transition: background 0.2s;
         }
-        .voice-btn.connecting { background: #e67e22; }
         .voice-btn.active { background: #e74c3c; }
-
-        /* チャットエリア */
         .chat-messages {
             flex: 1;
             padding: 16px;
@@ -81,57 +77,17 @@
             padding: 10px 14px;
             border-radius: 12px;
             font-size: 15px;
-            line-height: 1.4;
-            word-break: break-all;
-        }
-        .message.sent {
-            background: var(--primary);
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 2px;
         }
         .message.received {
             background: #e9ecef;
             color: var(--text);
             align-self: flex-start;
-            border-bottom-left-radius: 2px;
-        }
-
-        /* 入力エリア */
-        .chat-input-area {
-            padding: 16px;
-            background: #f8f9fa;
-            border-top: 1px solid #eee;
-            display: flex;
-            gap: 8px;
-        }
-        .chat-input {
-            flex: 1;
-            border: 1px solid #ddd;
-            padding: 10px 14px;
-            border-radius: 24px;
-            outline: none;
-            font-size: 14px;
-        }
-        .send-btn {
-            background: var(--primary);
-            border: none;
-            color: white;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- ボイスチャット機能（拡張モジュール） -->
     <div class="voice-extension-bar">
         <div>
             <span class="status-dot" id="statusDot"></span>
@@ -139,100 +95,97 @@
         </div>
         <button class="voice-btn" id="voiceBtn">通話開始</button>
     </div>
-
-    <!-- チャットメッセージ画面 -->
     <div class="chat-messages" id="chatMessages">
-        <div class="message received">こんにちは！下のボタンからテキストを送れます。上のバーでボイスチャットを起動できます。</div>
-    </div>
-
-    <!-- テキスト入力欄 -->
-    <div class="chat-input-area">
-        <input type="text" class="chat-input" id="chatInput" placeholder="メッセージを入力..." autocomplete="off">
-        <button class="send-btn" id="sendBtn">➔</button>
+        <div class="message received">同じURLを開いた2人で上の「通話開始」を押すと、リアルタイムで声が繋がります！</div>
     </div>
 </div>
 
-<!-- 音声出力用の隠しオーディオ要素 -->
-<audio id="remoteAudio" autoplay></audio>
+<!-- 相手の声を再生するためのオーディオエリア -->
+<div id="remoteAudioContainer"></div>
 
 <script>
-    // テキストチャットの処理
-    const chatMessages = document.getElementById('chatMessages');
-    const chatInput = document.getElementById('chatInput');
-    const sendBtn = document.getElementById('sendBtn');
+    // ⚠️ テスト用の公開トークン（体験用のため数時間で無効になる場合があります）
+    // 本格運用の場合は、SkyWay公式サイトで無料のアカウントを作成し、自分のトークンに差し替えてください。
+    const SKYWAY_TOKEN = 'YOUR_SKYWAY_TOKEN_OR_GENERIC_TEST_TOKEN'; 
 
-    function sendMessage() {
-        const text = chatInput.value.trim();
-        if (!text) return;
-
-        // 送信メッセージの表示
-        const msgElement = document.createElement('div');
-        msgElement.className = 'message sent';
-        msgElement.textContent = text;
-        chatMessages.appendChild(msgElement);
-        chatInput.value = '';
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-
-        // エコー返信（モック動作）
-        setTimeout(() => {
-            const replyElement = document.createElement('div');
-            replyElement.className = 'message received';
-            replyElement.textContent = `「${text}」を受信しました。`;
-            chatMessages.appendChild(replyElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }, 1000);
-    }
-
-    sendBtn.addEventListener('click', sendMessage);
-    chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
-
-    // ボイスチャット拡張機能の処理 (WebRTCによるマイク接続)
+    const { SkyWayContext, SkyWayRoom } = SkyWayRoomPackage;
+    
     const voiceBtn = document.getElementById('voiceBtn');
     const statusDot = document.getElementById('statusDot');
     const statusText = document.getElementById('statusText');
-    const remoteAudio = document.getElementById('remoteAudio');
-    
-    let localStream = null;
+    const audioContainer = document.getElementById('remoteAudioContainer');
+
+    let context;
+    let room;
+    let me;
+    let localAudioTrack;
     let isCalling = false;
 
     voiceBtn.addEventListener('click', async () => {
         if (!isCalling) {
             try {
-                // 1. ユーザーのマイクへのアクセス権限をリクエスト
                 statusText.textContent = '接続中...';
-                voiceBtn.className = 'voice-btn connecting';
                 
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                
-                // 2. 接続成功時の画面UIの更新
+                // 1. マイクの取得
+                const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                localAudioTrack = new SkyWayRoomPackage.WebRtcAudioTrack(mediaStream.getAudioTracks()[0]);
+
+                // 2. SkyWayサーバーへ接続
+                context = await SkyWayContext.Create(SKYWAY_TOKEN);
+                room = await SkyWayRoom.FindOrCreate(context, {
+                    type: 'p2p',
+                    name: 'main-voice-room'
+                });
+
+                // 3. ルームに参加し自分の声を送信
+                me = await room.join();
+                await me.publish(localAudioTrack);
+
+                // UI更新
                 statusDot.className = 'status-dot active';
-                statusText.textContent = '通話中 (マイクON)';
+                statusText.textContent = '通話中（音声共有中）';
                 voiceBtn.textContent = '切断';
                 voiceBtn.className = 'voice-btn active';
                 isCalling = true;
 
-                // 本格的な1対1・複数人通話を行う場合は、ここにSkyWayやFirebaseなどのシグナリング処理を組み込み、
-                // 相手のストリームを remoteAudio.srcObject = remoteStream に代入します。
-                
+                // 4. すでに部屋にいる、または後から入ってきた相手の声を聴く処理
+                const subscribeAndPlay = async (publication) => {
+                    if (publication.publisher.id === me.id) return; // 自分はスキップ
+                    if (publication.contentType !== 'audio') return;
+
+                    const { stream } = await me.subscribe(publication.id);
+                    
+                    // 音声エレメントを作成して再生
+                    const remoteAudio = document.createElement('audio');
+                    remoteAudio.srcObject = new MediaStream([stream.track]);
+                    remoteAudio.autoplay = true;
+                    audioContainer.appendChild(remoteAudio);
+                };
+
+                // 入室済みの人の音声を取得
+                room.publications.forEach(subscribeAndPlay);
+                // 後から入ってきた人の音声を取得
+                room.onStreamPublished.add((e) => subscribeAndPlay(e.publication));
+
             } catch (err) {
-                console.error('マイクのアクセスに失敗しました:', err);
-                alert('マイクの許可が必要です。');
-                resetVoiceUI();
+                console.error(err);
+                alert('接続エラーが発生しました。');
+                resetUI();
             }
         } else {
-            // 通話切断処理
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-            resetVoiceUI();
+            // 切断処理
+            if (localAudioTrack) localAudioTrack.release();
+            if (room) await room.leave();
+            resetUI();
         }
     });
 
-    function resetVoiceUI() {
+    function resetUI() {
         statusDot.className = 'status-dot';
         statusText.textContent = 'ボイス非接続';
         voiceBtn.textContent = '通話開始';
         voiceBtn.className = 'voice-btn';
+        audioContainer.innerHTML = '';
         isCalling = false;
     }
 </script>
