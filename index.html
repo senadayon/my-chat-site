@@ -12,7 +12,18 @@
             --text-color: #333;
             --admin-color: #e74c3c;
         }
-        body { font-family: sans-serif; background-color: var(--bg-color); margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; hieght: 100vh; height: 100vh; color: var(--text-color); }
+        /* bodyの綴りミス(hieght)を修正しました */
+        body { 
+            font-family: sans-serif; 
+            background-color: var(--bg-color); 
+            margin: 0; 
+            padding: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            color: var(--text-color); 
+        }
         .hidden { display: none !important; }
         
         /* ログイン・初期設定画面 */
@@ -79,7 +90,7 @@
     <!-- 2. パスワード要求モーダル（管理者用） -->
     <div id="admin-auth-modal" class="modal hidden" style="position: absolute; z-index: 100; box-shadow: 0 4px 30px rgba(0,0,0,0.3);">
         <h3>管理者パスワード入力</h3>
-        <p style="font-size: 12px; color: #777;">デフォルトパスワード: admin123</p>
+        <p style="font-size: 12px; color: #777;">パスワード: admin123</p>
         <input type="password" id="admin-password" placeholder="パスワードを入力">
         <button onclick="verifyAdmin()" style="background: var(--admin-color);">認証</button>
         <button onclick="closeAdminModal()" style="background: #999; margin-top: 5px;">キャンセル</button>
@@ -111,11 +122,9 @@
     </div>
 
     <script>
-        // 擬似的なデータ管理（本来はバックエンドサーバーで処理する内容）
         let currentUser = { name: '', avatar: '', isAdmin: false, ip: '192.168.1.5' };
         let selectedAvatarUrl = 'https://dicebear.com';
         
-        // モックのユーザーリスト（管理画面表示確認用）
         const mockUsers = [
             { id: 1, name: "サンプルユーザーA", avatar: "https://dicebear.com", ip: "192.168.1.10", status: "Active" },
             { id: 2, name: "荒らしアカウントB", avatar: "https://dicebear.com", ip: "203.0.113.5", status: "Active" },
@@ -138,13 +147,11 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('chat-screen').classList.remove('hidden');
             
-            // システムメッセージ表示
             addSystemMessage(`${currentUser.name} さんが入室しました。`);
         }
 
         function openAdminModal() {
             if (currentUser.isAdmin) {
-                // すでに管理者なら解除
                 currentUser.isAdmin = false;
                 document.getElementById('admin-toggle-btn').classList.remove('active');
                 document.getElementById('admin-toggle-btn').innerText = "管理者モード";
@@ -162,8 +169,7 @@
 
         function verifyAdmin() {
             const pass = document.getElementById('admin-password').value;
-            // 簡易パスワードチェック
-            if (pass === '003kok25') {
+            if (pass === 'admin123') {
                 currentUser.isAdmin = true;
                 document.getElementById('admin-toggle-btn').classList.add('active');
                 document.getElementById('admin-toggle-btn').innerText = "管理者: ON";
@@ -179,3 +185,5 @@
         function sendMessage() {
             const input = document.getElementById('message-input');
             const text = input.value.trim();
+            if (!text) return;
+
