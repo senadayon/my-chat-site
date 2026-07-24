@@ -3,112 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>シンプル音声通話</title>
-    <script src="https://unpkg.com"></script>
-    <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f0f2f5; }
-        .container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        button { padding: 10px 20px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 5px; border: none; background: #007bff; color: white; }
-        button:disabled { background: #ccc; }
-        input { padding: 10px; font-size: 16px; width: 80%; margin-bottom: 10px; text-align: center; }
-        .status { font-weight: bold; color: #555; margin: 15px 0; }
-    </style>
+    <title>Discord Clone Dashboard</title>
+    <!-- Tailwind CSSの読み込み -->
+    <script src="https://tailwindcss.com"></script>
+    <!-- Socket.ioの読み込み -->
+    <script src="https://socket.io"></script>
 </head>
-<body>
+<body class="flex h-screen bg-[#313338] text-[#dbdee1] font-sans overflow-hidden">
 
-<div class="container">
-    <h2>シンプル音声通話</h2>
-    
-    <div>
-        <p>あなたのID:</p>
-        <h3 id="my-id">読み込み中...</h3>
+    <!-- 左側：チャンネルリスト（ダミー） -->
+    <div class="w-60 bg-[#2b2d31] flex flex-col justify-between hidden md:flex border-r border-[#202225]/20">
+        <div>
+            <div class="h-12 border-b border-[#1f2023] flex items-center px-4 font-bold text-white shadow-sm">
+                GitHub Community
+            </div>
+            <div class="p-2 space-y-1">
+                <div class="text-xs font-bold text-[#949ba4] px-2 pt-4 pb-1 uppercase tracking-wider">テキストチャンネル</div>
+                <div class="flex items-center px-2 py-1.5 rounded bg-[#404249] text-white cursor-pointer text-sm font-medium">
+                    <span class="text-[#949ba4] text-lg mr-1.5">#</span> general
+                </div>
+            </div>
+        </div>
+        <div class="bg-[#232428] p-2 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <div id="user-avatar" class="w-8 h-8 rounded-full bg-[#5865f2] flex items-center justify-center font-bold text-white text-sm">U</div>
+                <div id="user-name" class="text-sm font-semibold truncate max-w-[120px] text-white">Loading...</div>
+            </div>
+        </div>
     </div>
 
-    <hr>
+    <!-- 右側：チャットエリア -->
+    <div class="flex-1 flex flex-col h-full bg-[#313338]">
+        <div class="h-12 border-b border-[#1f2023] flex items-center px-4 shadow-sm shrink-0">
+            <span class="text-[#80848e] text-2xl font-light mr-2">#</span>
+            <span class="font-bold text-white text-base">general</span>
+        </div>
 
-    <div>
-        <p>相手のIDを入力して通話:</p>
-        <input type="text" id="peer-id" placeholder="相手のIDを入力"><br>
-        <button id="call-btn" disabled>発信</button>
-        <button id="hangup-btn" style="background:#dc3545;" disabled>切断</button>
+        <!-- メッセージ表示エリア -->
+        <div id="message-container" class="flex-1 overflow-y-auto p-4 space-y-4 min-h-0"></div>
+
+        <!-- 入力フォーム -->
+        <form id="chat-form" class="p-4 pt-0 shrink-0">
+            <div class="bg-[#383a40] rounded-lg px-4 py-2.5 flex items-center">
+                <input type="text" id="chat-input" placeholder="# general へのメッセージ" autocomplete="off"
+                    class="bg-transparent w-full focus:outline-none text-[#dbdee1] placeholder-[#80848e] text-sm" />
+            </div>
+        </form>
     </div>
 
-    <div class="status" id="status">準備中...</div>
-</div>
+    <script>
+        // 公開されている無料のテスト用Socket.ioサーバー、またはご自身のサーバーURLを指定
+        const socket = io('https://glitch.me'); 
+        
+        const username = 'User_' + Math.floor(Math.random() * 1000);
+        document.getElementById('user-name').innerText = username;
+        document.getElementById('user-avatar').innerText = username[0];
 
-<!-- 音声再生用の隠し要素 -->
-<audio id="remote-audio" autoplay></audio>
+        const container = document.getElementById('message-container');
+        const form = document.getElementById('chat-form');
+        const input = document.getElementById('chat-input');
 
-<script>
-    let localStream = null;
-    let currentCall = null;
+        // メッセージ表示関数
+        function appendMessage(data) {
+            const time = data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const msgHtml = `
+                <div class="flex items-start space-x-4 hover:bg-[#2e3035]/50 px-4 py-1 rounded transition-colors">
+                    <div class="w-10 h-10 rounded-full bg-[#4e5058] text-white flex items-center justify-center font-bold shrink-0 mt-0.5">${data.user[0]}</div>
+                    <div class="flex flex-col min-w-0">
+                        <div class="flex items-baseline space-x-2">
+                            <span class="font-semibold text-white text-sm">${data.user}</span>
+                            <span class="text-xs text-[#949ba4]">${time}</span>
+                        </div>
+                        <p class="text-[#dbdee1] text-sm break-words whitespace-pre-wrap mt-0.5">${data.text}</p>
+                    </div>
+                </div>`;
+            container.insertAdjacentHTML('beforeend', msgHtml);
+            container.scrollTop = container.scrollHeight;
+        }
 
-    // 1. マイクの許可を取得
-    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-        .then(stream => {
-            localStream = stream;
-            document.getElementById('status').innerText = 'マイクが許可されました。接続中...';
+        socket.on('load_messages', (messages) => {
+            container.innerHTML = '';
+            messages.forEach(appendMessage);
+        });
+
+        socket.on('receive_message', appendMessage);
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!input.value.trim()) return;
             
-            // 2. PeerJSの初期化（無料のパブリックサーバーを利用）
-            const peer = new Peer();
-
-            // 自分のIDが発行されたとき
-            peer.on('open', (id) => {
-                document.getElementById('my-id').innerText = id;
-                document.getElementById('status').innerText = '通話可能です';
-                document.getElementById('call-btn').disabled = false;
-            });
-
-            // 3. 着信時の処理
-            peer.on('call', (call) => {
-                if (confirm('着信があります。通話しますか？')) {
-                    call.answer(localStream); // 自分のマイク音声を返して応答
-                    setupCallEvents(call);
-                } else {
-                    call.close();
-                }
-            });
-
-            // 4. 発信ボタンの処理
-            document.getElementById('call-btn').addEventListener('click', () => {
-                const peerId = document.getElementById('peer-id').value;
-                if (!peerId) return alert('相手のIDを入力してください');
-
-                const call = peer.call(peerId, localStream);
-                setupCallEvents(call);
-            });
-
-            // 5. 切断ボタンの処理
-            document.getElementById('hangup-btn').addEventListener('click', () => {
-                if (currentCall) currentCall.close();
-            });
-
-        }).catch(err => {
-            alert('マイクの許可に失敗しました: ' + err.message);
-            document.getElementById('status').innerText = 'エラー: マイクが必要です';
+            socket.emit('send_message', { user: username, text: input.value });
+            input.value = '';
         });
-
-    // 通話イベントの共通処理
-    function setupCallEvents(call) {
-        currentCall = call;
-        document.getElementById('status').innerText = '通話中...';
-        document.getElementById('call-btn').disabled = true;
-        document.getElementById('hangup-btn').disabled = false;
-
-        // 相手の音声ストリームを受信したとき
-        call.on('stream', (remoteStream) => {
-            const audio = document.getElementById('remote-audio');
-            audio.srcObject = remoteStream;
-        });
-
-        // 通話が終了したとき
-        call.on('close', () => {
-            document.getElementById('status').innerText = '通話が終了しました';
-            document.getElementById('call-btn').disabled = false;
-            document.getElementById('hangup-btn').disabled = true;
-            currentCall = null;
-        });
-    }
-</script>
+    </script>
 </body>
 </html>
