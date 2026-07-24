@@ -23,6 +23,7 @@
             border-radius: 12px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.3);
             box-sizing: border-box;
+            margin-top: 40px;
         }
         h1 {
             text-align: center;
@@ -31,11 +32,12 @@
         }
         .status {
             text-align: center;
-            padding: 10px;
+            padding: 12px;
             background: #2d3748;
             border-radius: 6px;
             margin-bottom: 20px;
             font-weight: bold;
+            border: 1px solid #4a5568;
         }
         .control-group {
             margin-bottom: 20px;
@@ -61,7 +63,7 @@
         }
         .btn {
             width: 100%;
-            padding: 12px;
+            padding: 14px;
             background: #4f46e5;
             color: white;
             border: none;
@@ -93,7 +95,8 @@
 <div class="container">
     <h1>Web通話</h1>
     
-    <div id="status" class="status">接続を待機中...</div>
+    <!-- 初期状態は「接続を待機中...」にしておき、エラーが起きたら詳細を表示します -->
+    <div id="status" class="status">通話を開始してください</div>
 
     <!-- ルーム設定 -->
     <div class="control-group">
@@ -122,14 +125,16 @@
     <button id="stopBtn" class="btn btn-disconnect">切断する</button>
 </div>
 
-<!-- WebRTCのシグナリングを簡略化するため、無料のパブリックPeerJSサーバーを利用します -->
+<!-- WebRTCの通信ライブラリ -->
 <script src="https://unpkg.com"></script>
 <script>
     let peer = null;
     let currentCall = null;
     let localStream = null;
     let audioCtx = null;
-    let biquadFilter = null; // 簡易的な音質補正用
+    let biquadFilter = null;
+    let mediaStreamSource = null;
+    let destination = null;
 
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
@@ -139,20 +144,20 @@
     const pitchValue = document.getElementById('pitchValue');
     const presetSelect = document.getElementById('presetSelect');
 
-    // ピッチ変更表示の更新
+    // スライダー変更時の処理
     pitchRange.addEventListener('input', (e) => {
         const val = parseFloat(e.target.value).toFixed(1);
         pitchValue.innerText = `${val} (${val == 1.0 ? '標準' : val > 1.0 ? '高い声' : '低い声'})`;
         updateVoiceEffect();
     });
 
-    // プリセット選択時の連動
+    // プリセット変更時の処理
     presetSelect.addEventListener('change', (e) => {
         pitchRange.value = e.target.value;
         pitchRange.dispatchEvent(new Event('input'));
     });
 
-    // 通話開始処理
+    // 通話開始処理（ボタンを押した時に初めてマイクを起動する安全な設計に変更）
     startBtn.addEventListener('click', async () => {
         const roomId = roomIdInput.value.trim();
         if (!roomId) {
@@ -163,14 +168,13 @@
         statusDiv.innerText = "マイクに接続中...";
 
         try {
-            // 1. マイク音声の取得
+            // ボタンを押した瞬間にマイクを要求することで、ブラウザの許可設定を確実に同期させます
             localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
             
-            // 2. ボイスチェンジャー（Web Audio API）のセットアップ
+            // 音声プロセッサのセットアップ
             setupAudioProcessor(localStream);
 
-            // 3. PeerJSサーバーに接続 (ルームIDを固有のPeerIDとして簡易共有)
-            // ※本来はシグナリングサーバーが必要ですが、体験版としてランダムIDを生成し合流する仕組みにします
+            // ピア（通信）の作成
             const myPeerId = roomId + '-' + Math.floor(Math.random() * 1000);
             peer = new Peer(myPeerId);
 
@@ -178,18 +182,13 @@
                 statusDiv.innerText = `ルームに参加しました！あなたのID: ${id}`;
                 startBtn.style.display = 'none';
                 stopBtn.style.display = 'block';
-                
-                // 周囲の同じルームIDのユーザーを探して自動発信（簡易実装のため、固定IDへ発信を試みる仕組み）
-                // 本格的なMiroTalkのように多人数にするにはメッシュ接続の管理が必要ですが、1対1のテスト用として動作します
-                console.log("接続準備完了:", id);
             });
 
-            // 相手からの着信を監視
+            // 相手からの着信処理
             peer.on('call', (call) => {
                 currentCall = call;
-                // 自分のボイチェン後の音声を相手に送信
-                const processedStream = destination.stream;
-                call.answer(processedStream);
+                // ボイチェン加工した音声を相手に送信
+                call.answer(destination.stream);
                 
                 call.on('stream', (remoteStream) => {
                     playRemoteStream(remoteStream);
@@ -197,27 +196,19 @@
                 });
             });
 
-            // 自分から接続を試みるためのダミー（手動で相手のPEER IDを叩くか、自動接続ロジックが必要）
-            // ※この簡易版では「相手からかかってくるのを待つ」または「先にいる人に繋ぐ」動きになります
-
         } catch (err) {
             console.error(err);
-            statusDiv.innerText = "エラー: マイクの権限を許可してください。";
+            // 万が一失敗した場合、原因を特定しやすくするために英語のエラー名（NotAllowedError等）も画面に表示します
+            statusDiv.innerText = "エラー: マイクの接続に失敗しました（" + err.name + "）";
         }
     });
 
-    // ボイスチェンジャーのコア処理（Web Audio API）
-    let mediaStreamSource = null;
-    let destination = null;
-
+    // Web Audio API によるボイチェン処理
     function setupAudioProcessor(stream) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         mediaStreamSource = audioCtx.createMediaStreamSource(stream);
         destination = audioCtx.createMediaStreamDestination();
 
-        // 簡易ピッチシフト（標準のBiquadFilterでフォルマントをいじる簡易版）
-        // ※ブラウザ標準機能で高度なピッチシフトを行う場合、本来はAudioWorklet（重い処理）が必要ですが
-        //   動く軽量版として再生速度/周波数フィルタを調整します。
         biquadFilter = audioCtx.createBiquadFilter();
         biquadFilter.type = "peaking";
         
@@ -230,21 +221,20 @@
     function updateVoiceEffect() {
         if (!biquadFilter) return;
         const pitch = parseFloat(pitchRange.value);
-        // ピッチに合わせて周波数帯域を擬似的にシフト
         biquadFilter.frequency.value = 1000 * pitch;
         biquadFilter.Q.value = 2.0;
         biquadFilter.gain.value = pitch > 1.0 ? 5 : -5;
     }
 
-    // 相手の音声を受け取ってスピーカーから流す
+    // 相手の音声を再生
     function playRemoteStream(remoteStream) {
         const audio = document.createElement('audio');
         audio.srcObject = remoteStream;
         audio.autoplay = true;
-        document.body.appendChild(audio); // バックグラウンド再生用
+        document.body.appendChild(audio);
     }
 
-    // 切断
+    // 切断処理
     stopBtn.addEventListener('click', () => {
         if (currentCall) currentCall.close();
         if (peer) peer.destroy();
@@ -261,6 +251,3 @@
 
 </body>
 </html>
-
-
-
