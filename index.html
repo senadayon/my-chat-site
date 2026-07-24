@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>チャット</title>
+    <title>ブラウザ版チャット</title>
     <style>
         :root {
             --border-color: #4a4a4a;
@@ -169,7 +169,7 @@
             color: #333;
         }
 
-        /* モーダルウィンドウ（ユーザー情報・管理者ログイン・登録） */
+        /* モーダルウィンドウ */
         .modal {
             display: none;
             position: fixed;
@@ -245,18 +245,14 @@
         <!-- 中央チャット画面 -->
         <div class="chat-panel framed-box">
             <h1 class="chat-header">チャット</h1>
-            <div class="chat-messages" id="chatMessages">
-                <!-- メッセージがここに流れます -->
-            </div>
+            <div class="chat-messages" id="chatMessages"></div>
             <div class="input-container">
                 <input type="text" class="chat-input" id="chatInput" placeholder="メッセージを入力してね" onkeypress="sendMessage(event)">
             </div>
         </div>
 
         <!-- 右サイドバー（ユーザーリスト） -->
-        <div class="right-panel" id="userList">
-            <!-- ユーザーリストが動的に生成されます -->
-        </div>
+        <div class="right-panel" id="userList"></div>
 
     </div>
 
@@ -274,7 +270,7 @@
     <div class="modal" id="adminModal">
         <div class="modal-content">
             <h3>管理者認証</h3>
-            <input type="password" id="003kok25Password" placeholder="パスワードを入力 (admin)">
+            <input type="password" id="adminPassword" placeholder="パスワードを入力">
             <div class="modal-buttons">
                 <button class="btn" onclick="verifyAdmin()">ログイン</button>
                 <button class="btn" onclick="closeModal('adminModal')">キャンセル</button>
@@ -307,12 +303,10 @@
     </div>
 
     <script>
-        // ダミーデータと状態管理
         let currentUser = { username: "", avatar: "👤" };
         let isAdmin = false;
         let selectedUserIdx = null;
 
-        // モックユーザーリスト
         const users = [
             { username: "username_A", ip: "192.168.1.10", banned: false, ipBanned: false },
             { username: "username_B", ip: "192.168.1.11", banned: false, ipBanned: false },
@@ -321,26 +315,16 @@
             { username: "username_E", ip: "192.168.1.14", banned: false, ipBanned: false }
         ];
 
-        // 初回ユーザー登録
         function registerUser() {
             const name = document.getElementById('regUsername').value.trim();
             if(!name) return alert('ユーザー名を入力してください');
             currentUser.username = name;
-            
-            // リストに自分を追加
             users.unshift({ username: name, ip: "127.0.0.1", banned: false, ipBanned: false });
-            
             document.getElementById('registerModal').style.display = 'none';
-
-
-          function verifyAdmin() {
-            const pass = document.getElementById('adminPassword').value;
-            if(pass === "003kok25") {
-                isAdmin = true;
-                document.getElementById('adminBadge').style.display = 'block';
-                alert('管理者モードになりました。ユーザーリストから各権限を操作できます。');
-                closeModal('adminModal');
-            } else {
-                alert('パスワードが違います。');
-            }
+            renderUsers();
+            addSystemMessage(`${name} さんが入室しました。`);
         }
+
+        function renderUsers() {
+            const listContainer = document.getElementById('userList');
+            listContainer.innerHTML = "";
