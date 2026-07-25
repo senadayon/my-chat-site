@@ -5,249 +5,162 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web通話</title>
     <style>
+        /* 全体の背景と文字スタイル設定 */
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: #0e1118;
+            background-color: #0b111e;
             color: #ffffff;
-            margin: 0;
-            padding: 20px;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
             display: flex;
-            flex-direction: column;
+            justify-content: center;
             align-items: center;
+            height: 100vh;
+            margin: 0;
         }
+
+        /* 中央のメインコンテナ */
         .container {
-            max-width: 600px;
-            width: 100%;
-            background: #1c2331;
+            background-color: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 8px;
+            width: 450px;
             padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-            box-sizing: border-box;
-            margin-top: 40px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
         }
+
+        /* メインタイトル */
         h1 {
-            text-align: center;
             color: #4f46e5;
+            text-align: center;
+            font-size: 24px;
             margin-bottom: 25px;
         }
-        .status {
+
+        /* 接続ステータスバー */
+        .status-bar {
+            background-color: #1f2937;
+            color: #9ca3af;
             text-align: center;
-            padding: 12px;
-            background: #2d3748;
+            padding: 10px;
             border-radius: 6px;
-            margin-bottom: 20px;
-            font-weight: bold;
-            border: 1px solid #4a5568;
+            font-size: 14px;
+            margin-bottom: 25px;
         }
-        .control-group {
+
+        /* 各入力項目のグループ */
+        .form-group {
             margin-bottom: 20px;
         }
+
+        /* ラベルのスタイル */
         label {
             display: block;
+            font-size: 13px;
+            color: #d1d5db;
             margin-bottom: 8px;
-            font-weight: 500;
         }
-        input[type="text"], select {
+
+        /* テキスト入力欄 */
+        input[type="text"] {
             width: 100%;
+            background-color: #1f2937;
+            border: 1px solid #374151;
+            color: #ffffff;
             padding: 12px;
             border-radius: 6px;
-            border: 1px solid #4a5568;
-            background: #2d3748;
-            color: white;
             box-sizing: border-box;
-            font-size: 16px;
+            font-size: 14px;
         }
+
+        /* スライダーと数値の横並び調整 */
+        .slider-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* 横幅いっぱいのスライダー */
         input[type="range"] {
-            width: 100%;
-            margin-top: 5px;
+            flex-grow: 1;
+            margin-right: 15px;
+            accent-color: #3b82f6; /* 青色のつまみ */
         }
-        .btn {
+
+        .slider-value {
+            font-size: 13px;
+            color: #9ca3af;
+            white-space: nowrap;
+        }
+
+        /* セレクトボックス（ドロップダウン） */
+        select {
             width: 100%;
-            padding: 14px;
-            background: #4f46e5;
-            color: white;
-            border: none;
+            background-color: #1f2937;
+            border: 1px solid #374151;
+            color: #ffffff;
+            padding: 12px;
             border-radius: 6px;
-            font-size: 16px;
+            box-sizing: border-box;
+            font-size: 14px;
+            appearance: none; /* デフォルトの矢印をリセット */
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://w3.org' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+        }
+
+        /* 通話開始ボタン */
+        .submit-btn {
+            width: 100%;
+            background-color: #4f46e5;
+            color: #ffffff;
+            border: none;
+            padding: 14px;
+            border-radius: 6px;
+            font-size: 14px;
             font-weight: bold;
             cursor: pointer;
-            transition: background 0.2s;
-        }
-        .btn:hover {
-            background: #4338ca;
-        }
-        .btn-disconnect {
-            background: #dc2626;
             margin-top: 10px;
-            display: none;
+            transition: background-color 0.2s;
         }
-        .btn-disconnect:hover {
-            background: #b91c1c;
-        }
-        .value-display {
-            float: right;
-            color: #a0aec0;
+
+        .submit-btn:hover {
+            background-color: #4338ca;
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>Web通話</h1>
-    
-    <!-- 初期状態は「接続を待機中...」にしておき、エラーが起きたら詳細を表示します -->
-    <div id="status" class="status">通話を開始してください</div>
-
-    <!-- ルーム設定 -->
-    <div class="control-group">
-        <label for="roomId">ルームID（通話相手と同じIDを入力）</label>
-        <input type="text" id="roomId" value="mirotalk-room-123">
-    </div>
-
-    <!-- ボイスチェンジャー設定 -->
-    <div class="control-group">
-        <label for="pitchRange">高さ <span id="pitchValue" class="value-display">1.0 (標準)</span></label>
-        <input type="range" id="pitchRange" min="0.5" max="2.0" step="0.1" value="1.0">
-    </div>
-
-    <div class="control-group">
-        <label for="presetSelect">関係なし</label>
-        <select id="presetSelect">
-            <option value="1.0">カスタム（スライダーで調整）</option>
-            <option value="1.5">女性風・高い声</option>
-            <option value="1.8">ちびキャラ風</option>
-            <option value="0.7">男性風・低い声</option>
-            <option value="0.5">ロボット・怪獣風</option>
-        </select>
-    </div>
-
-    <button id="startBtn" class="btn">通話を開始する（マイク許可が必要）</button>
-    <button id="stopBtn" class="btn btn-disconnect">切断する</button>
-</div>
-
-<!-- WebRTCの通信ライブラリ -->
-<script src="https://unpkg.com"></script>
-<script>
-    let peer = null;
-    let currentCall = null;
-    let localStream = null;
-    let audioCtx = null;
-    let biquadFilter = null;
-    let mediaStreamSource = null;
-    let destination = null;
-
-    const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const statusDiv = document.getElementById('status');
-    const roomIdInput = document.getElementById('roomId');
-    const pitchRange = document.getElementById('pitchRange');
-    const pitchValue = document.getElementById('pitchValue');
-    const presetSelect = document.getElementById('presetSelect');
-
-    // スライダー変更時の処理
-    pitchRange.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value).toFixed(1);
-        pitchValue.innerText = `${val} (${val == 1.0 ? '標準' : val > 1.0 ? '高い声' : '低い声'})`;
-        updateVoiceEffect();
-    });
-
-    // プリセット変更時の処理
-    presetSelect.addEventListener('change', (e) => {
-        pitchRange.value = e.target.value;
-        pitchRange.dispatchEvent(new Event('input'));
-    });
-
-    // 通話開始処理（ボタンを押した時に初めてマイクを起動する安全な設計に変更）
-    startBtn.addEventListener('click', async () => {
-        const roomId = roomIdInput.value.trim();
-        if (!roomId) {
-            alert('ルームIDを入力してください');
-            return;
-        }
-
-        statusDiv.innerText = "マイクに接続中...";
-
-        try {
-            // ボタンを押した瞬間にマイクを要求することで、ブラウザの許可設定を確実に同期させます
-            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-            
-            // 音声プロセッサのセットアップ
-            setupAudioProcessor(localStream);
-
-            // ピア（通信）の作成
-            const myPeerId = roomId + '-' + Math.floor(Math.random() * 1000);
-            peer = new Peer(myPeerId);
-
-            peer.on('open', (id) => {
-                statusDiv.innerText = `ルームに参加しました！あなたのID: ${id}`;
-                startBtn.style.display = 'none';
-                stopBtn.style.display = 'block';
-            });
-
-            // 相手からの着信処理
-            peer.on('call', (call) => {
-                currentCall = call;
-                // ボイチェン加工した音声を相手に送信
-                call.answer(destination.stream);
-                
-                call.on('stream', (remoteStream) => {
-                    playRemoteStream(remoteStream);
-                    statusDiv.innerText = "通話中（ボイチェン適用中）";
-                });
-            });
-
-        } catch (err) {
-            console.error(err);
-            // 万が一失敗した場合、原因を特定しやすくするために英語のエラー名（NotAllowedError等）も画面に表示します
-            statusDiv.innerText = "エラー: マイクの接続に失敗しました（" + err.name + "）";
-        }
-    });
-
-    // Web Audio API によるボイチェン処理
-    function setupAudioProcessor(stream) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        mediaStreamSource = audioCtx.createMediaStreamSource(stream);
-        destination = audioCtx.createMediaStreamDestination();
-
-        biquadFilter = audioCtx.createBiquadFilter();
-        biquadFilter.type = "peaking";
+    <div class="container">
+        <h1>Web通話</h1>
         
-        mediaStreamSource.connect(biquadFilter);
-        biquadFilter.connect(destination);
-        
-        updateVoiceEffect();
-    }
+        <div class="status-bar">
+            接続を待機中...
+        </div>
 
-    function updateVoiceEffect() {
-        if (!biquadFilter) return;
-        const pitch = parseFloat(pitchRange.value);
-        biquadFilter.frequency.value = 1000 * pitch;
-        biquadFilter.Q.value = 2.0;
-        biquadFilter.gain.value = pitch > 1.0 ? 5 : -5;
-    }
+        <div class="form-group">
+            <label>ルームID（通話相手と同じIDを入力）</label>
+            <input type="text" value="mirotalk-room-123">
+        </div>
 
-    // 相手の音声を再生
-    function playRemoteStream(remoteStream) {
-        const audio = document.createElement('audio');
-        audio.srcObject = remoteStream;
-        audio.autoplay = true;
-        document.body.appendChild(audio);
-    }
+        <div class="form-group">
+            <label>ピッチ（声の高さ）</label>
+            <div class="slider-container">
+                <input type="range" min="0.5" max="2.0" step="0.1" value="1.5">
+                <span class="slider-value">1.5 (高い声)</span>
+            </div>
+        </div>
 
-    // 切断処理
-    stopBtn.addEventListener('click', () => {
-        if (currentCall) currentCall.close();
-        if (peer) peer.destroy();
-        if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
-        }
-        if (audioCtx) audioCtx.close();
+        <div class="form-group">
+            <label>ボイスプリセット</label>
+            <select>
+                <option>女性風・高い声</option>
+                <option>男性風・低い声</option>
+                <option>ロボットボイス</option>
+            </select>
+        </div>
 
-        statusDiv.innerText = "切断されました。";
-        startBtn.style.display = 'block';
-        stopBtn.style.display = 'none';
-    });
-</script>
+        <button class="submit-btn">通話を開始する（マイク許可が必要）</button>
+    </div>
 
 </body>
 </html>
