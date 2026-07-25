@@ -3,164 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web通話</title>
+    <title>通話アプリ</title>
     <style>
-        /* 全体の背景と文字スタイル設定 */
-        body {
-            background-color: #0b111e;
-            color: #ffffff;
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-
-        /* 中央のメインコンテナ */
-        .container {
-            background-color: #111827;
-            border: 1px solid #1f2937;
-            border-radius: 8px;
-            width: 450px;
-            padding: 30px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-        }
-
-        /* メインタイトル */
-        h1 {
-            color: #4f46e5;
-            text-align: center;
-            font-size: 24px;
-            margin-bottom: 25px;
-        }
-
-        /* 接続ステータスバー */
-        .status-bar {
-            background-color: #1f2937;
-            color: #9ca3af;
-            text-align: center;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 14px;
-            margin-bottom: 25px;
-        }
-
-        /* 各入力項目のグループ */
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        /* ラベルのスタイル */
-        label {
-            display: block;
-            font-size: 13px;
-            color: #d1d5db;
-            margin-bottom: 8px;
-        }
-
-        /* テキスト入力欄 */
-        input[type="text"] {
-            width: 100%;
-            background-color: #1f2937;
-            border: 1px solid #374151;
-            color: #ffffff;
-            padding: 12px;
-            border-radius: 6px;
-            box-sizing: border-box;
-            font-size: 14px;
-        }
-
-        /* スライダーと数値の横並び調整 */
-        .slider-container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        /* 横幅いっぱいのスライダー */
-        input[type="range"] {
-            flex-grow: 1;
-            margin-right: 15px;
-            accent-color: #3b82f6; /* 青色のつまみ */
-        }
-
-        .slider-value {
-            font-size: 13px;
-            color: #9ca3af;
-            white-space: nowrap;
-        }
-
-        /* セレクトボックス（ドロップダウン） */
-        select {
-            width: 100%;
-            background-color: #1f2937;
-            border: 1px solid #374151;
-            color: #ffffff;
-            padding: 12px;
-            border-radius: 6px;
-            box-sizing: border-box;
-            font-size: 14px;
-            appearance: none; /* デフォルトの矢印をリセット */
-            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://w3.org' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
-            background-repeat: no-repeat;
-            background-position: right 12px center;
-            background-size: 16px;
-        }
-
-        /* 通話開始ボタン */
-        .submit-btn {
-            width: 100%;
-            background-color: #4f46e5;
-            color: #ffffff;
-            border: none;
-            padding: 14px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: background-color 0.2s;
-        }
-
-        .submit-btn:hover {
-            background-color: #4338ca;
-        }
+        body { font-family: sans-serif; text-align: center; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        button { font-size: 16px; padding: 10px 20px; margin: 10px; cursor: pointer; border: none; border-radius: 5px; background: #007bff; color: white; }
+        button:disabled { background: #ccc; }
+        select { font-size: 16px; padding: 10px; width: 80%; margin: 10px 0; }
+        .status { font-weight: bold; margin: 15px 0; color: #555; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>Web通話</h1>
-        
-        <div class="status-bar">
-            接続を待機中...
-        </div>
+<div class="container">
+    <h2>🎙️ ボイチェン通話テスト</h2>
+    
+    <label for="voiceEffect">声のエフェクトを選択：</label>
+    <select id="voiceEffect">
+        <option value="normal">ノーマル（そのまま）</option>
+        <option value="high">高い声（ヘリウム風）</option>
+        <option value="low">低い声（ダースベイダー風）</option>
+        <option value="robot">ロボットボイス</option>
+    </select>
 
-        <div class="form-group">
-            <label>ルームID（通話相手と同じIDを入力）</label>
-            <input type="text" value="mirotalk-room-123">
-        </div>
+    <div class="status" id="status">ボタンを押してマイクを通話に接続してください</div>
+    
+    <button id="startBtn">通話・接続開始</button>
+    <button id="stopBtn" disabled>切断</button>
+</div>
 
-        <div class="form-group">
-            <label>ピッチ（声の高さ）</label>
-            <div class="slider-container">
-                <input type="range" min="0.5" max="2.0" step="0.1" value="1.5">
-                <span class="slider-value">1.5 (高い声)</span>
-            </div>
-        </div>
+<script>
+    let audioCtx;
+    let microphone;
+    let biquadFilter;
+    let delayNode;
+    let feedbackNode;
+    let waveShaper;
+    let localStream;
 
-        <div class="form-group">
-            <label>ボイスプリセット</label>
-            <select>
-                <option>女性風・高い声</option>
-                <option>男性風・低い声</option>
-                <option>ロボットボイス</option>
-            </select>
-        </div>
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const statusText = document.getElementById('status');
+    const voiceEffect = document.getElementById('voiceEffect');
 
-        <button class="submit-btn">通話を開始する（マイク許可が必要）</button>
-    </div>
+    // ボイチェンの仕組みを構築する関数
+    async function setupAudio() {
+        try {
+            // マイク入力を取得
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            
+            // Web Audio APIの初期化
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            microphone = audioCtx.createMediaStreamSource(localStream);
+            
+            // エフェクト用ノードの作成
+            biquadFilter = audioCtx.createBiquadFilter();
+            delayNode = audioCtx.createDelay();
+            feedbackNode = audioCtx.createGain();
+            waveShaper = audioCtx.createWaveShaper();
+
+            // ロボット用の設定
+            delayNode.delayTime.value = 0.015;
+            feedbackNode.gain.value = 0.5;
+
+            // 初期状態はノーマル接続
+            updateEffect();
+
+            statusText.innerText = "🎵 通話接続中（自分の声が加工されてスピーカーから出ます）";
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+        } catch (err) {
+            console.error(err);
+            statusText.innerText = "❌ マイクの許可が必要です。";
+        }
+    }
+
+    // エフェクトをリアルタイムに切り替える関数
+    function updateEffect() {
+        if (!audioCtx) return;
+
+        // 一度すべての接続を解除
+        microphone.disconnect();
+        biquadFilter.disconnect();
+        delayNode.disconnect();
+        feedbackNode.disconnect();
+        waveShaper.disconnect();
+
+        const effect = voiceEffect.value;
+
+        if (effect === 'high') {
+            // 高い声：ハイパスフィルターで低音をカット
+            biquadFilter.type = 'highpass';
+            biquadFilter.frequency.setValueAtTime(1500, audioCtx.currentTime);
+            microphone.connect(biquadFilter);
+            biquadFilter.connect(audioCtx.destination);
+
+        } else if (effect === 'low') {
+            // 低い声：ローパスフィルターで高音をカットしてこもらせる
+            biquadFilter.type = 'lowpass';
+            biquadFilter.frequency.setValueAtTime(400, audioCtx.currentTime);
+            microphone.connect(biquadFilter);
+            biquadFilter.connect(audioCtx.destination);
+
+        } else if (effect === 'robot') {
+            // ロボット：短いディレイをループさせて金属音を作る
+            microphone.connect(delayNode);
+            delayNode.connect(feedbackNode);
+            feedbackNode.connect(delayNode); // フィードバックループ
+            
+            delayNode.connect(audioCtx.destination);
+
+        } else {
+            // ノーマル：そのままスピーカーへ
+            microphone.connect(audioCtx.destination);
+        }
+    }
+
+    // イベントリスナー
+    startBtn.addEventListener('click', setupAudio);
+    
+    voiceEffect.addEventListener('change', updateEffect);
+
+    stopBtn.addEventListener('click', () => {
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+        }
+        if (audioCtx) {
+            audioCtx.close();
+        }
+        statusText.innerText = "🔌 切断しました";
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+    });
+</script>
 
 </body>
 </html>
